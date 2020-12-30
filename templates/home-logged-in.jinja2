@@ -1,0 +1,57 @@
+{% extends 'base-logged-in.jinja2' %}
+
+{% block head %}
+
+
+<style>
+    .title-wrapper h1 p{
+        animation: fade2 2.2s;
+    }
+    @keyframes fade2 {
+    from { opacity: 0; transform: translateX(-100px); }
+    to   { opacity: 1; transform: translateX(0px); }
+    }
+    .title-wrapper p{
+        font-size: 16px;
+    }
+    .bg-wrapper {
+        height: 100vh;
+        background: url({{ url_for('static', filename = 'statue-of-liberty.svg') }}) right top, url({{ url_for('static', filename = 'paris.svg') }}) center bottom , url({{ url_for('static', filename = 'building.svg') }}) left 2rem top ;
+        background-repeat: no-repeat;
+        background-size: cover;
+        background-size: 75vh;
+        animation: fade3 2.2s;
+    }
+    @keyframes fade3 {
+    from { opacity: 0; transform: translateY(100px); }
+    to   { opacity: 1; transform: translateY(0px); }
+    }
+        .navbar{
+            animation: fadeIn 2s ease-in both;
+        }
+        @keyframes fadeIn {
+	from {
+		opacity: 0;
+		transform: translate3d(0, -20%, 0);
+	}
+	to {
+		opacity: 1;
+		transform: translate3d(0, 0, 0);
+	    }
+    }
+</style>
+{% endblock %}
+
+<body>
+{% block content %}
+    <div class="page-wrapper" >
+        <div class="title-wrapper">
+        <div class="bg-wrapper">
+            <h1>Welcome to IMG://REPO.</h1>
+            <p></p>
+            <a class="btn" href="{{ url_for('imageView') }}" role="button">View Images</a>
+        </div>
+        </div>
+    </div>
+{% endblock %}
+</body>

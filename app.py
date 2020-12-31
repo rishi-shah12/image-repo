@@ -1,6 +1,6 @@
 import imghdr
 
-from flask import Flask, send_from_directory
+from flask import Flask, send_from_directory, send_file
 import flask
 from flask import Flask,render_template, request, jsonify, make_response, url_for,redirect
 from flask_sqlalchemy import SQLAlchemy
@@ -88,7 +88,7 @@ def token_required(f):
                 data=jwt.decode(token, app.config['SECRET_KEY'])
                 current_user=User.query.filter_by(userName=data['userName']).first()
             except:
-                return jsonify(message='Token is invalid'),401
+                return redirect(url_for('login_page'))
 
             return f(current_user, *args, **kwargs)
     return decorated
@@ -97,10 +97,12 @@ def validate_image(stream):
     header = stream.read(512)
     stream.seek(0)
     format = imghdr.what(None, header)
+    print(format)
     if format == 'jpeg':
         format = 'jpg'
     if not format:
         return None
+
     return '.' + format
 
 def get_common_colour(image_file, numcolors=1, resize=150):
@@ -110,7 +112,9 @@ def get_common_colour(image_file, numcolors=1, resize=150):
                (0, 255, 0, "green"),
                (28, 122, 53, "dark_green"),
                (192, 192, 192, "grey"),
-               (255, 255, 0, "yellow"))
+               (255, 255, 0, "yellow"),
+               (209, 171, 0, "dirty_yellow"),
+               (0, 66, 189, "dark_blue"))
 
     # Resize image to speed up processing
     img = PIL.Image.open(image_file[1:])
@@ -158,9 +162,9 @@ def login():
     user = User.query.filter_by(userName=login['userName']).first()
 
     if not user:
-        return jsonify(message='A user with this email does not exist.')
+        return render_template('error.jinja2', message="A user with this email doesn't exist", url='login')
     if not check_password_hash(user.password,login['password']):
-        return jsonify(message='Incorrect Password')
+        return render_template('error.jinja2', message="Incorrect password", url='login')
     if check_password_hash(user.password,login['password']): #queried password
         token=jwt.encode({'userName': user.userName,'exp':datetime.datetime.utcnow()+datetime.timedelta(minutes=30)}, app.config['SECRET_KEY'])
         session['token'] = token
@@ -168,8 +172,7 @@ def login():
         redir.headers['x-access-tokens'] = token
         return redir
     else:
-        return jsonify(message='Your email or password is incorrect'),401
-
+        return render_template('error.jinja2', message="Email or Password Incorrect", url='login')
 @app.route('/api/register', methods=['POST'])
 def register():
     data=request.form
@@ -177,9 +180,9 @@ def register():
     test=User.query.filter_by(userName=nameUser).first()
 
     if test:
-        return jsonify(message='A user with this email already exists.'), 409
+        return render_template('error.jinja2', message="A user with this email already exists", url='register')
     if data['password'] != data['confirmPassword']:
-        return jsonify(message='Passwords do not  match')
+        return render_template('error.jinja2', message="Passwords do not  match", url='register')
     else:
         hashed_password=generate_password_hash(data['password'], method='sha256')
         new_user = User(
@@ -188,7 +191,7 @@ def register():
                      )
         db.session.add(new_user)
         db.session.commit()
-        return jsonify(message='User Created'),201
+        return redirect(url_for('login_page'))
 
 
 @app.route('/api/add', methods=['POST'])
@@ -202,7 +205,8 @@ def upload_file(current_user):
     for uploaded_file in request.files.getlist('file'):
         filename = secure_filename(uploaded_file.filename)
         file_ext = os.path.splitext(filename)[1]
-        if file_ext not in app.config['UPLOAD_EXTENSIONS'] or file_ext != validate_image(uploaded_file.stream):
+        print("Main func" + file_ext)
+        if file_ext not in app.config['UPLOAD_EXTENSIONS']: #or file_ext != validate_image(uploaded_file.stream):
             return "Invalid File Name"
         encrypted_name = str(uuid.uuid4())
         uploaded_file.save(os.path.join(app.config['UPLOAD_PATH'], encrypted_name + file_ext))
@@ -221,7 +225,8 @@ def upload_file(current_user):
         )
         db.session.add(new_image)
         db.session.commit()
-    return jsonify(message='Image(s) Added')
+    return redirect(url_for('imageView'))
+    #return jsonify(message='Image(s) Added')
 
     #return render_template('display.jinja2', name='uploads/'+ encrypted_name + file_ext)
 
@@ -253,7 +258,7 @@ def imageView(current_user):
             output.append(imagePub)
 
         number = len(output)
-        return render_template('all-images.jinja2', userdata=session['userData'])
+        return render_template('all-images.jinja2', userdata=session['userData'], number=number, output=output, title="All Images")
         #return jsonify(output)
         #return render_template('portfolio-overview.jinja2', userdata=session['userData'], output=output, number=number)
     else:
@@ -272,7 +277,7 @@ def resultsView(current_user, params):
     if userImgPrivate:
         for img in userImgPrivate:
             for param in paramaters:
-                if img.image_characteristics.contains(param):
+                if param in img.image_characteristics:
                     imagePriv={}
                     imagePriv['image_public']=img.image_public
                     imagePriv['user_uploaded']=img.user_uploaded
@@ -298,15 +303,25 @@ def resultsView(current_user, params):
                     break
 
         number = len(output)
-        return jsonify(output)
+        return render_template('all-images.jinja2', userdata=session['userData'], number=number, output=output,
+                               title="Image Results for: " + params)
+        # return jsonify(output)
         #return render_template('portfolio-overview.jinja2', userdata=session['userData'], output=output, number=number)
     else:
         return redirect('/api/add')
 
+@app.route('/api/download/<folder>/<path>')
+@token_required
+def download_image(current_user, folder, path):
+    print(folder)
+    print(path)
+    url = 'static/' + folder + '/' + path
+    return send_file(url, as_attachment=True)
+
 @app.route('/api/search')
 @token_required
 def search_main(current_user):
-    return render_template('search.html')
+    return render_template('search.jinja2')
 
 @app.route('/api/search', methods=['POST'])
 @token_required
@@ -318,7 +333,41 @@ def search_post(current_user):
 @app.route('/api/add')
 @token_required
 def add(current_user):
-    return render_template('add-image.html')
+    return render_template('add.jinja2', userdata=session['userData'])
+
+@app.route('/api/delete/<image_id>')
+@token_required
+def deleteImage(current_user, image_id):
+
+    userImage=Image.query.filter_by(image_id=image_id).first()
+
+    if userImage:
+        os.remove("static/" + userImage.image_path)
+        db.session.delete(userImage)
+        db.session.commit()
+        return redirect(url_for('imageView'))
+    else:
+        return render_template('error-logged-in.jinja2', message="Invalid Image Id", url='imageView', userdata=session['userData'])
+
+@app.route('/api/editImage/<image_id>')
+@token_required
+def editImage(current_user, image_id):
+    imgEdit = Image.query.filter_by(image_id=image_id).first()
+    if imgEdit:
+        if current_user.userName == imgEdit.user_uploaded:
+            if imgEdit.image_public:
+                imgEdit.image_public = False
+            else:
+                imgEdit.image_public = True
+
+            db.session.commit()
+            return redirect(url_for('imageView'))
+        else:
+            return render_template('error-logged-in.jinja2', message="You don't have the permissions to edit this image",
+                                   url='imageView', userdata=session['userData'])
+    else:
+        return render_template('error-logged-in.jinja2', message="Image doesn't exist", url='imageView', userdata=session['userData'])
+
 
 @app.route('/api/home', methods=['GET'])
 @token_required

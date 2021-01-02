@@ -27,26 +27,34 @@ import requests
 
 app = Flask(__name__)
 
+#Base directory path (for the database)
 basedir = os.path.abspath(os.path.dirname(__file__)) #Where to store the file for the db (same folder as the running application)
 
+#All the app configs to use the api
 app.config['SQLALCHEMY_DATABASE_URI'] ='sqlite:///' + os.path.join(basedir,'users.db') #initalized db
 app.config['SECRET_KEY']='secret-key'
-app.config['UPLOAD_EXTENSIONS'] = ['.jpg', 'jpeg', '.png', '.gif']
+app.config['UPLOAD_EXTENSIONS'] = ['.jpg', 'jpeg', '.png', '.gif', '.zip']
 app.config['UPLOAD_PATH'] = 'static/uploads'
 
+#Generating secret key
 s = URLSafeTimedSerializer('SECRET_KEY')
 
+#setting the db to this app
 db=SQLAlchemy(app)
+
+#Creating the database in the event it doesn't exist
 @app.cli.command('dbCreate')
 def db_create():
     db.create_all()
     print('Database created')
 
+#Drop the database to delete all the data
 @app.cli.command('dbDrop')
 def db_drop():
     db.drop_all()
     print('Database Dropped')
 
+#Seed the database with the test user
 @app.cli.command('dbSeed')
 def db_seed():
     hashed_password=generate_password_hash('password', method='sha256')
@@ -57,12 +65,13 @@ def db_seed():
     db.session.commit()
     print('Seeded')
 
-
+#User class
 class User(db.Model):
     id = Column(Integer, primary_key=True)
     userName = Column(String(50), unique=True)
     password = Column(String(50))
 
+#Image class
 class Image(db.Model):
     id = Column(Integer, primary_key=True)
     user_uploaded = Column(String(50))
@@ -71,6 +80,7 @@ class Image(db.Model):
     image_characteristics = Column(String())
     image_public = Column(Boolean)
 
+#Check if the login cookie credientials are valid to continue with the app
 def token_required(f):
     @wraps(f)
     def decorated(*args,**kwargs):
@@ -83,7 +93,8 @@ def token_required(f):
             if 'cookie' in request.headers:
                 token=session['token']
             if 'cookie' not in request.headers:
-                return jsonify(message='Token is missing'),401
+                return render_template('locked-out.jinja2')
+                #return jsonify(message='Token is missing'),401
             try:
                 data=jwt.decode(token, app.config['SECRET_KEY'])
                 current_user=User.query.filter_by(userName=data['userName']).first()
@@ -93,6 +104,7 @@ def token_required(f):
             return f(current_user, *args, **kwargs)
     return decorated
 
+#Validating the image
 def validate_image(stream):
     header = stream.read(512)
     stream.seek(0)
@@ -105,6 +117,7 @@ def validate_image(stream):
 
     return '.' + format
 
+#Getting the dominant colour in an image
 def get_common_colour(image_file, numcolors=1, resize=150):
     colours = ((255, 255, 255, "white"),
                (255, 0, 0, "red"),
@@ -114,7 +127,14 @@ def get_common_colour(image_file, numcolors=1, resize=150):
                (192, 192, 192, "grey"),
                (255, 255, 0, "yellow"),
                (209, 171, 0, "dirty_yellow"),
-               (0, 66, 189, "dark_blue"))
+               (0, 66, 189, "dark_blue"),
+               (191, 62, 8, "rust_red"),
+               (249, 122, 5, "orange"),
+               (77, 14, 140, "purple"),
+               (12, 122, 225, "blue"),
+               (159, 213, 253, "light_blue"),
+               (44, 52, 92, "navy_blue"),
+               (24, 30, 44, "grey_blue"))
 
     # Resize image to speed up processing
     img = PIL.Image.open(image_file[1:])
@@ -141,9 +161,11 @@ def get_common_colour(image_file, numcolors=1, resize=150):
     return nearest_colour(colours, (rgb[0], rgb[1], rgb[2]))
 
 
+#Getting the nearest recognized colour from the most dominant
 def nearest_colour( subjects, query ):
     return min( subjects, key = lambda subject: sum( (s - q) ** 2 for s, q in zip( subject, query ) ) )
 
+#Run through a machine learning classification api to return some characteristics about the image
 def get_image_classifcation(image_path):
     api_key = 'acc_630736786df6731'
     api_secret = 'bfe9c3a361d722e78509e34a8eb40826'
@@ -156,13 +178,15 @@ def get_image_classifcation(image_path):
     return res
 
 #User Endpoints
+
+#Login endpoint
 @app.route('/api/login', methods=['POST'])
 def login():
     login = request.form
     user = User.query.filter_by(userName=login['userName']).first()
 
     if not user:
-        return render_template('error.jinja2', message="A user with this email doesn't exist", url='login')
+        return render_template('error.jinja2', message="A user with this username doesn't exist", url='login')
     if not check_password_hash(user.password,login['password']):
         return render_template('error.jinja2', message="Incorrect password", url='login')
     if check_password_hash(user.password,login['password']): #queried password
@@ -173,6 +197,8 @@ def login():
         return redir
     else:
         return render_template('error.jinja2', message="Email or Password Incorrect", url='login')
+
+#Register endpoint
 @app.route('/api/register', methods=['POST'])
 def register():
     data=request.form
@@ -193,7 +219,7 @@ def register():
         db.session.commit()
         return redirect(url_for('login_page'))
 
-
+#Add an image endpoint
 @app.route('/api/add', methods=['POST'])
 @token_required
 def upload_file(current_user):
@@ -226,10 +252,8 @@ def upload_file(current_user):
         db.session.add(new_image)
         db.session.commit()
     return redirect(url_for('imageView'))
-    #return jsonify(message='Image(s) Added')
 
-    #return render_template('display.jinja2', name='uploads/'+ encrypted_name + file_ext)
-
+#Get all images endpoint
 @app.route('/api/images', methods=['GET'])
 @token_required
 def imageView(current_user):
@@ -259,13 +283,11 @@ def imageView(current_user):
 
         number = len(output)
         return render_template('all-images.jinja2', userdata=session['userData'], number=number, output=output, title="All Images")
-        #return jsonify(output)
-        #return render_template('portfolio-overview.jinja2', userdata=session['userData'], output=output, number=number)
     else:
         return redirect('/api/add')
 
 
-
+#Search results endpoint
 @app.route('/api/results/<params>', methods=['GET'])
 @token_required
 def resultsView(current_user, params):
@@ -305,11 +327,10 @@ def resultsView(current_user, params):
         number = len(output)
         return render_template('all-images.jinja2', userdata=session['userData'], number=number, output=output,
                                title="Image Results for: " + params)
-        # return jsonify(output)
-        #return render_template('portfolio-overview.jinja2', userdata=session['userData'], output=output, number=number)
     else:
         return redirect('/api/add')
 
+#Download image endpoint
 @app.route('/api/download/<folder>/<path>')
 @token_required
 def download_image(current_user, folder, path):
@@ -318,11 +339,13 @@ def download_image(current_user, folder, path):
     url = 'static/' + folder + '/' + path
     return send_file(url, as_attachment=True)
 
+#Search for an image
 @app.route('/api/search')
 @token_required
 def search_main(current_user):
     return render_template('search.jinja2')
 
+#Search post form endpoint
 @app.route('/api/search', methods=['POST'])
 @token_required
 def search_post(current_user):
@@ -330,11 +353,13 @@ def search_post(current_user):
     pass_params = parameters.replace(',','-')
     return redirect(url_for('resultsView', params=pass_params))
 
+#Add image endpoint
 @app.route('/api/add')
 @token_required
 def add(current_user):
     return render_template('add.jinja2', userdata=session['userData'])
 
+#Delete image endpoint
 @app.route('/api/delete/<image_id>')
 @token_required
 def deleteImage(current_user, image_id):
@@ -349,6 +374,7 @@ def deleteImage(current_user, image_id):
     else:
         return render_template('error-logged-in.jinja2', message="Invalid Image Id", url='imageView', userdata=session['userData'])
 
+#Modify an image permissions endpoint
 @app.route('/api/editImage/<image_id>')
 @token_required
 def editImage(current_user, image_id):
@@ -368,7 +394,7 @@ def editImage(current_user, image_id):
     else:
         return render_template('error-logged-in.jinja2', message="Image doesn't exist", url='imageView', userdata=session['userData'])
 
-
+#Home page (after login) endpoint
 @app.route('/api/home', methods=['GET'])
 @token_required
 def user(current_user):
@@ -378,20 +404,24 @@ def user(current_user):
 
     return render_template('home-logged-in.jinja2', userdata=user_data)
 
+#register page
 @app.route('/api/register')
 def register_page():
     return render_template('register.jinja2')
 
+#login page
 @app.route('/api/login')
 def login_page():
     return render_template('login.jinja2')
 
+#logout and delete all the credentials
 @app.route('/api/logout')
 def logout_page():
     session.pop('token', None)
     session.pop('userData', None)
     return redirect(url_for('home'))
 
+#Home page (not logged in)
 @app.route('/')
 def home():
     return render_template('home.jinja2')

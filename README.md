@@ -1,6 +1,6 @@
 # image-repo
 
-An image repository project that can be accessed at: https://image-repo-project.herokuapp.com/
+An image repository project that can be accessed at: https://image-repo-project.herokuapp.com/   (This is a heroku website so it will take a minute for it to load)
 
 Or you can clone the repo and do pip install -r requirements.txt and flask run (this was developed with python 3.7.5)
 

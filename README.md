@@ -30,6 +30,12 @@ You can search for the most common colour or any of the top 3 classifcations.
 
 It is also possible to click the tags under the image in the all images/search results page to make that your search parameter
 
+You can also search for the user who uploaded an image or the image-id from the same search box
+
+Enter the search parameters seperated by a comma ','
+
+The search is expansive (meaning each new parameter will broaden the search)
+
 ## Deleting 
 
 Images can be deleted from the all images/search images screen.

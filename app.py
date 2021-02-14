@@ -250,7 +250,7 @@ def upload_file(current_user):
         uploaded_file.save(os.path.join(app.config['UPLOAD_PATH'], encrypted_name + file_ext))
         # If the file is not a supported image format return error
         if not validate_image(os.path.join(app.config['UPLOAD_PATH'], encrypted_name + file_ext)):
-            return "Invalid File Name"
+            return render_template('error.jinja2', message="Invalid File Type", url='upload_file')
         # Get the most common colour
         colour = get_common_colour(url_for('static', filename='uploads/' + encrypted_name + file_ext))
         characteristics = colour[3]
@@ -315,7 +315,7 @@ def imageView(current_user):
 def resultsView(current_user, params):
     output = []
     # Get all the parameters searched by
-    paramaters = params.split('-')
+    paramaters = params.split('|')
     # Search all private images
     userImgPrivate = Image.query.filter_by(image_public=False, user_uploaded=current_user.userName).all()
     # If any private images exist
@@ -323,7 +323,7 @@ def resultsView(current_user, params):
         for img in userImgPrivate:
             for param in paramaters:
                 # Look for for the parameters in the image characteristics
-                if param in img.image_characteristics:
+                if param in img.image_characteristics or param in img.image_id or param in img.user_uploaded:
                     imagePriv={}
                     imagePriv['image_public']=img.image_public
                     imagePriv['user_uploaded']=img.user_uploaded
@@ -339,7 +339,7 @@ def resultsView(current_user, params):
         for img in userImgPublic:
             for param in paramaters:
                 # Look for for the parameters in the image characteristics
-                if param in img.image_characteristics:
+                if param in img.image_characteristics or param in img.image_id or param in img.user_uploaded:
                     imagePub={}
                     imagePub['image_public']=img.image_public
                     imagePub['user_uploaded']=img.user_uploaded
@@ -351,7 +351,7 @@ def resultsView(current_user, params):
 
         number = len(output)
         return render_template('all-images.jinja2', userdata=session['userData'], number=number, output=output,
-                               title="Image Results for: " + params)
+                               title="Image Results for: " + params.replace('|', " and "))
     else:
         # If no images, redirect to add an image
         return redirect('/api/add')
@@ -367,7 +367,7 @@ def download_image(current_user, folder, path):
 @app.route('/api/search')
 @token_required
 def search_main(current_user):
-    return render_template('search.jinja2')
+    return render_template('search.jinja2', userdata=session['userData'])
 
 # Search post form endpoint
 @app.route('/api/search', methods=['POST'])
@@ -375,7 +375,7 @@ def search_main(current_user):
 def search_post(current_user):
     parameters = request.form['params']
     # Replace the commas with '-' to pass in the url
-    pass_params = parameters.replace(',','-')
+    pass_params = parameters.replace(',','|')
     return redirect(url_for('resultsView', params=pass_params))
 
 # Add image endpoint

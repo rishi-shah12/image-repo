@@ -304,7 +304,7 @@ def imageView(current_user):
 def resultsView(current_user, params):
     output = []
     # Get all the parameters searched by
-    paramaters = params
+    paramaters = params.split(',')
     # Search all private images
     userImgPrivate = Image.query.filter_by(image_public=False, user_uploaded=current_user.userName).all()
     # If any private images exist

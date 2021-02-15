@@ -3,11 +3,9 @@ from flask import Flask, send_from_directory, send_file, render_template, reques
     url_for, redirect, session
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import Column, Integer, String, Boolean
-from itsdangerous import URLSafeTimedSerializer, SignatureExpired
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 from werkzeug.utils import secure_filename
-from PIL import ImageColor
 
 app = Flask(__name__)
 
@@ -18,14 +16,11 @@ basedir = os.path.abspath(os.path.dirname(__file__))
 # Database Init
 app.config['SQLALCHEMY_DATABASE_URI'] ='sqlite:///' + os.path.join(basedir,'users.db')
 # Secret Key which allows for the app to ask for authentication every 30 mins
-app.config['SECRET_KEY']='secret-key'
+app.config['SECRET_KEY'] = '6da514bf-3130-40af-95a7-030f5ca8e172'
 # Allowable upload formats for the images
 app.config['UPLOAD_EXTENSIONS'] = ['jpg', 'jpeg', 'png', 'gif']
 # Location where all the uploads are stored
 app.config['UPLOAD_PATH'] = 'static/uploads'
-
-# Generating secret key
-s = URLSafeTimedSerializer('SECRET_KEY')
 
 # Setting the db to the current Flask App
 db = SQLAlchemy(app)
@@ -141,21 +136,15 @@ def get_common_colour(image_file, numcolors=1, resize=150):
 
     # Find dominant colors
     palette = paletted.getpalette()
-    color_counts = sorted(paletted.getcolors(), reverse=True)
+
+    # Put the most dominant colour in a list
     colors = list()
-    for i in range(numcolors):
-        palette_index = color_counts[i][1]
-        dominant_color = palette[palette_index * 3:palette_index * 3 + 3]
-        colors.append(tuple(dominant_color))
 
-    # Converting the rgb to hex
-    for x in range(len(colors)):
-        colors[x] = '#%02x%02x%02x' % (colors[x][0], colors[x][1], colors[x][2])
-
-    rgb = ImageColor.getcolor(colors[0], "RGB")
+    dominant_color = palette[0:3]
+    colors.append(tuple(dominant_color))
 
     # Submitting the rgb value of the most common colour to be classified
-    return nearest_colour(colours, (rgb[0], rgb[1], rgb[2]))
+    return nearest_colour(colours, (colors[0][0], colors[0][1], colors[0][2]))
 
 
 #Getting the nearest recognized colour from the most dominant
@@ -315,7 +304,7 @@ def imageView(current_user):
 def resultsView(current_user, params):
     output = []
     # Get all the parameters searched by
-    paramaters = params.split('|')
+    paramaters = params
     # Search all private images
     userImgPrivate = Image.query.filter_by(image_public=False, user_uploaded=current_user.userName).all()
     # If any private images exist
@@ -351,7 +340,7 @@ def resultsView(current_user, params):
 
         number = len(output)
         return render_template('all-images.jinja2', userdata=session['userData'], number=number, output=output,
-                               title="Image Results for: " + params.replace('|', " and "))
+                               title="Image Results for: " + params.replace(',', " and "))
     else:
         # If no images, redirect to add an image
         return redirect('/api/add')
@@ -374,9 +363,7 @@ def search_main(current_user):
 @token_required
 def search_post(current_user):
     parameters = request.form['params']
-    # Replace the commas with '-' to pass in the url
-    pass_params = parameters.replace(',','|')
-    return redirect(url_for('resultsView', params=pass_params))
+    return redirect(url_for('resultsView', params=parameters))
 
 # Add image endpoint
 @app.route('/api/add')

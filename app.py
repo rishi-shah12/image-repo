@@ -19,7 +19,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] ='sqlite:///' + os.path.join(basedir,'user
 # Secret Key which allows for the app to ask for authentication every 30 mins
 app.config['SECRET_KEY'] = '6da514bf-3130-40af-95a7-030f5ca8e172'
 # Allowable upload formats for the images
-app.config['UPLOAD_EXTENSIONS'] = ['jpg', 'jpeg', 'png', 'gif']
+app.config['UPLOAD_EXTENSIONS'] = ['jpg', 'jpeg', 'png']
 # Location where all the uploads are stored
 app.config['UPLOAD_PATH'] = 'static/uploads'
 
@@ -111,9 +111,11 @@ def get_common_colour(image_file, numcolors=1, resize=150):
     # Look up tables with the rgb colour values and the name
     list_of_rgbs = [[255, 255, 255], [255, 0, 0], [128, 0, 0], [0, 255, 0], [28, 122, 53], [192, 192, 192],
                     [255, 255, 0], [209, 171, 0], [0, 66, 189], [191, 62, 8], [249, 122, 5], [77, 14, 140],
-                    [12, 122, 225], [159, 213, 253], [44, 52, 92], [24, 30, 44], [250, 240, 230], [106, 90, 15]]
+                    [12, 122, 225], [159, 213, 253], [44, 52, 92], [24, 30, 44], [250, 240, 230], [106, 90, 15],
+                    [74, 9, 2]]
     list_colours = ["white", "red", "dark_red", "green","dark_green", "grey", "yellow", "yellow", "dark_blue",
-                    "rust_red", "orange", "purple", "blue", "light_blue", "blue", "grey_blue", "linen", "dark_green"]
+                    "rust_red", "orange", "purple", "blue", "light_blue", "blue", "grey_blue", "linen", "dark_green",
+                    "red"]
 
     # Resize image to speed up processing
     img = PIL.Image.open(image_file[1:])

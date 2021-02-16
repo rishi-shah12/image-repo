@@ -6,6 +6,7 @@ from sqlalchemy import Column, Integer, String, Boolean
 from werkzeug.security import generate_password_hash, check_password_hash
 from functools import wraps
 from werkzeug.utils import secure_filename
+import numpy as np
 
 app = Flask(__name__)
 
@@ -108,23 +109,11 @@ def validate_image(location):
 # Function for detting the dominant colour in an image for tagging
 def get_common_colour(image_file, numcolors=1, resize=150):
     # Look up tables with the rgb colour values and the name
-    colours = ((255, 255, 255, "white"),
-               (255, 0, 0, "red"),
-               (128, 0, 0, "dark red"),
-               (0, 255, 0, "green"),
-               (28, 122, 53, "dark_green"),
-               (192, 192, 192, "grey"),
-               (255, 255, 0, "yellow"),
-               (209, 171, 0, "dirty_yellow"),
-               (0, 66, 189, "dark_blue"),
-               (191, 62, 8, "rust_red"),
-               (249, 122, 5, "orange"),
-               (77, 14, 140, "purple"),
-               (12, 122, 225, "blue"),
-               (159, 213, 253, "light_blue"),
-               (44, 52, 92, "navy_blue"),
-               (24, 30, 44, "grey_blue"),
-               (250, 240, 230, "linen"))
+    list_of_rgbs = [[255, 255, 255], [255, 0, 0], [128, 0, 0], [0, 255, 0], [28, 122, 53], [192, 192, 192],
+                    [255, 255, 0], [209, 171, 0], [0, 66, 189], [191, 62, 8], [249, 122, 5], [77, 14, 140],
+                    [12, 122, 225], [159, 213, 253], [44, 52, 92], [24, 30, 44], [250, 240, 230], [106, 90, 15]]
+    list_colours = ["white", "red", "dark_red", "green","dark_green", "grey", "yellow", "yellow", "dark_blue",
+                    "rust_red", "orange", "purple", "blue", "light_blue", "blue", "grey_blue", "linen", "dark_green"]
 
     # Resize image to speed up processing
     img = PIL.Image.open(image_file[1:])
@@ -144,13 +133,20 @@ def get_common_colour(image_file, numcolors=1, resize=150):
     colors.append(tuple(dominant_color))
 
     # Submitting the rgb value of the most common colour to be classified
-    return nearest_colour(colours, (colors[0][0], colors[0][1], colors[0][2]))
+    return nearest_colour(list_of_rgbs, [colors[0][0], colors[0][1], colors[0][2]], list_colours)
 
 
 #Getting the nearest recognized colour from the most dominant
-def nearest_colour(subjects, query):
+def nearest_colour(colours, colour, list_colours):
     # Lamda function to get the closest colour by rgb value from the input and the colours dictionary
-    return min(subjects, key=lambda subject: sum((s - q) ** 2 for s, q in zip(subject, query)))
+    colors = np.array(colours)
+    color = np.array(colour)
+    # Getting the rgb value distances
+    distances = np.sqrt(np.sum((colors - color) ** 2, axis=1))
+    # Getting the colour with the smallest distance to the colour
+    index_of_smallest = np.where(distances == np.amin(distances))
+    smallest_distance = list_colours[index_of_smallest[0][0]]
+    return smallest_distance
 
 # Run through a machine learning classification api to return some characteristics about the image
 def get_image_classifcation(image_path):
@@ -242,7 +238,7 @@ def upload_file(current_user):
             return render_template('error.jinja2', message="Invalid File Type", url='upload_file')
         # Get the most common colour
         colour = get_common_colour(url_for('static', filename='uploads/' + encrypted_name + file_ext))
-        characteristics = colour[3]
+        characteristics = colour
         # Get the image classifications from the external API
         classifications = get_image_classifcation(url_for('static', filename='uploads/' + encrypted_name + file_ext))
         # Add the colour and the 3 best suited tags to the characteristics
@@ -340,7 +336,7 @@ def resultsView(current_user, params):
 
         number = len(output)
         return render_template('all-images.jinja2', userdata=session['userData'], number=number, output=output,
-                               title="Image Results for: " + params.replace(',', " and "))
+                               title="Image Results for: " + params.replace(',', " or "))
     else:
         # If no images, redirect to add an image
         return redirect('/api/add')
